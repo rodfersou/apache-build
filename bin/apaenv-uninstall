@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+#
+# Summary: Uninstall a specific Apache version
+#
+# Usage: apaenv uninstall [-f|--force] <version>
+#
+#    -f  Attempt to remove the specified version without prompting
+#        for confirmation. If the version does not exist, do not
+#        display an error message.
+#
+# See `apaenv versions` for a complete list of installed versions.
+#
+set -e
+
+# Provide rbenv completions
+if [ "$1" = "--complete" ]; then
+  exec apaenv versions --bare
+fi
+
+if [ -z "$APAENV_ROOT" ]; then
+  APAENV_ROOT="${HOME}/.apaenv"
+fi
+
+unset FORCE
+if [ "$1" = "-f" ] || [ "$1" = "--force" ]; then
+  FORCE=true
+  shift
+fi
+
+DEFINITION="$1"
+case "$DEFINITION" in
+"" | -* )
+  # We can remove the sed fallback once rbenv 0.4.0 is widely available.
+  { apaenv-help uninstall 2>/dev/null ||
+    sed -ne '/^#/!q;s/.\{1,2\}//;1,4d;p' < "$0"
+  } >&2
+  exit 1
+  ;;
+esac
+
+VERSION_NAME="${DEFINITION##*/}"
+PREFIX="${APAENV_ROOT}/versions/${VERSION_NAME}"
+
+if [ -z "$FORCE" ]; then
+  if [ ! -d "$PREFIX" ]; then
+    echo "apaenv: version \`$VERSION_NAME' not installed" >&2
+    exit 1
+  fi
+
+  read -p "apaenv: remove $PREFIX? "
+  case "$REPLY" in
+  y* | Y* ) ;;
+  * ) exit 1 ;;
+  esac
+fi
+
+if [ -d "$PREFIX" ]; then
+  rm -rf "$PREFIX"
+  apaenv rehash
+fi
