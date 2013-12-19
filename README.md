@@ -1,4 +1,4 @@
-# apache-build
+# apache-build (work in progress)
 apache-build is an [apaenv](https://github.com/rodfersou/apaenv) plugin that provides an `apaenv install` command.
 
 Almost all of code come from [node-build](https://github.com/riywo/node-build). Thanks a lot!
