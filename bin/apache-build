@@ -142,6 +142,7 @@ make_package() {
   shift
 
   pushd "$package_name" >&4
+  pushd "bindist" >&4
   before_install_package "$package_name"
   build_package "$package_name" $*
   after_install_package "$package_name"
@@ -149,21 +150,23 @@ make_package() {
   popd >&4
 }
 
-compute_sha1() {
-  if type shasum &>/dev/null; then
-    local output="$(shasum)"
-    echo $output | awk '{print $1}'
-  elif type sha1sum &>/dev/null; then
-    local output="$(sha1sum)"
-    echo $output | awk '{print $1}'
+compute_md5() {
+  if type md5 &>/dev/null; then
+    md5 -q
+  elif type openssl &>/dev/null; then
+    local output="$(openssl md5)"
+    echo "${output##* }"
+  elif type md5sum &>/dev/null; then
+    local output="$(md5sum -b)"
+    echo "${output% *}"
   else
     return 1
   fi
 }
 
 verify_checksum() {
-  # If there's no SHA1 support, return success
-  [ -n "$HAS_SHA1_SUPPORT" ] || return 0
+  # If there's no MD5 support, return success
+  [ -n "$HAS_MD5_SUPPORT" ] || return 0
 
   # If the specified filename doesn't exist, return success
   local filename="$1"
@@ -174,7 +177,7 @@ verify_checksum() {
   [ -n "$expected_checksum" ] || return 0
 
   # If the computed checksum is empty, return failure
-  local computed_checksum="$(compute_sha1 < "$filename")"
+  local computed_checksum="$(compute_md5 < "$filename")"
   [ -n "$computed_checksum" ] || return 1
 
   if [ "$expected_checksum" != "$computed_checksum" ]; then
@@ -426,21 +429,24 @@ usage() {
 }
 
 list_definitions() {
-  curl -s http://apachejs.org/dist/ \
-    | egrep -o 'v[0-9]+\.[0-9]+\.[0-9]+' \
-    | sort -t. -u -k 1.2,1n -k 2,2n -k 3,3n
+  local uname="$(uname -a)"
+  local os=
+  local arch="$(uname -m)"
+  case "$uname" in
+    Linux\ *) os=linux ;;
+    Darwin\ *) os=darwin ;;
+    SunOS\ *) os=sunos ;;
+    FreeBSD\ *) os=freebsd ;;
+  esac
+  curl -s http://archive.apache.org/dist/httpd/binaries/${os}/ \
+    | grep -i ${arch} \
+    | egrep -o '[0-9]+\.[0-9]+\.[0-9]+' \
+    | sort -t. -u -k 1,1n -k 2,2n -k 3,3n
 }
 
 ls_remote() {
   local PATTERN=$1
   local VERSIONS
-  if [ "$PATTERN" ]; then
-    if echo "${PATTERN}" | grep -v '^v' ; then
-      PATTERN=v$PATTERN
-    fi
-  else
-    PATTERN=".*"
-  fi
   VERSIONS=$(list_definitions | grep -w "${PATTERN}")
   if [ ! "$VERSIONS" ]; then
     echo "N/A"
@@ -465,6 +471,7 @@ install_apache() {
 
   local uname="$(uname -a)"
   local os=
+  local model=
   local arch="$(uname -m)"
   case "$uname" in
     Linux\ *) os=linux ;;
@@ -473,10 +480,13 @@ install_apache() {
     FreeBSD\ *) os=freebsd ;;
   esac
   case "$uname" in
-    *x86_64*) arch=x64 ;;
-    *i*86*) arch=x86 ;;
+    *x86_64*) model=unknown ;;
+    *i*86*) model=pc ;;
   esac
-
+  case "${VERSION:0:1}" in
+    1) model="whatever" ;;
+  esac
+  
   nobinary=0
   if [ "$os" = "freebsd" ]; then
     nobinary=1
@@ -485,19 +495,15 @@ install_apache() {
   if [ $nobinary -ne 1 ]; then
     # shortcut - try the binary if possible.
     if [ -n "$os" ]; then
-      binavail=
-      # binaries started with apache 0.8.6
-      case "$VERSION" in
-        v0.8.[012345]) binavail=0 ;;
-        v0.[1234567].*) binavail=0 ;;
-        *) binavail=1 ;;
+      package_name=
+      case "${VERSION:0:1}" in
+        1) package_name=apache_ ;;
+        *) package_name=httpd- ;;
       esac
-      if [ $binavail -eq 1 ]; then
-        t="$VERSION-$os-$arch"
-        sum=`curl -s http://apachejs.org/dist/$VERSION/SHASUMS.txt | grep apache-${t}.tar.gz | awk '{print $1}'`
-        url="http://apachejs.org/dist/$VERSION/apache-${t}.tar.gz#${sum}"
-        install_package "apache-${t}" "$url" copy
-      fi
+      t="${package_name}${VERSION}-${arch}-${model}-${os}-gnu"
+      sum=`curl -s http://archive.apache.org/dist/httpd/binaries/${os}/${t}.tar.gz.md5 | awk '{print $2}'`
+      url="http://archive.apache.org/dist/httpd/binaries/${os}/${t}.tar.gz#${sum}"
+      install_package "${package_name}${VERSION}" "$url" copy
     fi
   fi
 } 
@@ -571,11 +577,11 @@ if [ -n "$APACHE_BUILD_SKIP_MIRROR" ]; then
   unset APACHE_BUILD_MIRROR_URL
 fi
 
-if echo test | compute_sha1 >/dev/null; then
-  HAS_SHA1_SUPPORT=1
+if echo test | compute_md5 >/dev/null; then
+  HAS_MD5_SUPPORT=1
 else
-  unset HAS_SHA1_SUPPORT
-  unset APACHE_BUILD_MIRROR_URL
+  unset HAS_MD5_SUPPORT
+  unset PYTHON_BUILD_MIRROR_URL
 fi
 
 SEED="$(date "+%Y%m%d%H%M%S").$$"
