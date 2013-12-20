@@ -395,18 +395,20 @@ build_package_autoconf() {
 }
 
 build_package_copy() {
-  echo "copy"
   mkdir -p "$PREFIX_PATH"
   cp -R . "$PREFIX_PATH"
 }
 
 build_package_fixpermissions() {
-  echo "fixpermissions"
   chmod +x ${PREFIX_PATH}/bindist/bin/*
 }
 
 build_package_fixconf() {
   echo "fixconf"
+  #for i in `file * | grep -v ELF | sed 's/\(.*\):.*/\1/'`
+  #do
+  #    sed 's/\([=\ ]\).*\(bindist\)/\1rfs\2/' $i | grep rfs
+  #done
 }
 
 before_install_package() {
