@@ -142,7 +142,6 @@ make_package() {
   shift
 
   pushd "$package_name" >&4
-  pushd "bindist" >&4
   before_install_package "$package_name"
   build_package "$package_name" $*
   after_install_package "$package_name"
@@ -396,8 +395,18 @@ build_package_autoconf() {
 }
 
 build_package_copy() {
+  echo "copy"
   mkdir -p "$PREFIX_PATH"
   cp -R . "$PREFIX_PATH"
+}
+
+build_package_fixpermissions() {
+  echo "fixpermissions"
+  chmod +x ${PREFIX_PATH}/bindist/bin/*
+}
+
+build_package_fixconf() {
+  echo "fixconf"
 }
 
 before_install_package() {
@@ -503,7 +512,7 @@ install_apache() {
       t="${package_name}${VERSION}-${arch}-${model}-${os}-gnu"
       sum=`curl -s http://archive.apache.org/dist/httpd/binaries/${os}/${t}.tar.gz.md5 | awk '{print $2}'`
       url="http://archive.apache.org/dist/httpd/binaries/${os}/${t}.tar.gz#${sum}"
-      install_package "${package_name}${VERSION}" "$url" copy
+      install_package "${package_name}${VERSION}" "$url" copy fixpermissions fixconf
     fi
   fi
 } 
@@ -612,5 +621,7 @@ trap build_failed ERR
 mkdir -p "$BUILD_PATH"
 #source "$DEFINITION_PATH"
 install_apache "$APACHE_VERSION"
+echo "${KEEP_BUILD_PATH}"
+echo "$BUILD_PATH"
 [ -z "${KEEP_BUILD_PATH}" ] && rm -fr "$BUILD_PATH"
 trap - ERR
