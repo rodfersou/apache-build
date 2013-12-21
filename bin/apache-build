@@ -449,10 +449,10 @@ list_definitions() {
     SunOS\ *) os=sunos ;;
     FreeBSD\ *) os=freebsd ;;
   esac
-  curl -s http://archive.apache.org/dist/httpd/binaries/${os}/ \
-    | grep -i ${arch} \
+  curl -s http://archive.apache.org/dist/httpd/ \
+    | grep -i \.tar\.gz \
     | egrep -o '[0-9]+\.[0-9]+\.[0-9]+' \
-    | sort -t. -u -k 1,1n -k 2,2n -k 3,3n
+    | sort -t. -u
 }
 
 ls_remote() {
@@ -511,10 +511,11 @@ install_apache() {
         1) package_name=apache_ ;;
         *) package_name=httpd- ;;
       esac
-      t="${package_name}${VERSION}-${arch}-${model}-${os}-gnu"
-      sum=`curl -s http://archive.apache.org/dist/httpd/binaries/${os}/${t}.tar.gz.md5 | awk '{print $2}'`
-      url="http://archive.apache.org/dist/httpd/binaries/${os}/${t}.tar.gz#${sum}"
-      install_package "${package_name}${VERSION}" "$url" copy fixpermissions fixconf
+      t="${package_name}${VERSION}"
+      sum=`curl -s http://archive.apache.org/dist/httpd/${t}.tar.gz.md5 | awk '{print $1}'`
+      url="http://archive.apache.org/dist/httpd/${t}.tar.gz#${sum}"
+      install_package "${package_name}${VERSION}" "$url"
+      #copy fixpermissions fixconf
     fi
   fi
 } 
